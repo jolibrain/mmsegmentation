@@ -310,3 +310,6 @@ class EncoderDecoder(BaseSegmentor):
         # unravel batch dim
         seg_pred = list(seg_pred)
         return seg_pred
+
+    def get_attention_mask(self,input):
+        return self.backbone.get_attention_mask(input)
