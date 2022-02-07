@@ -416,8 +416,9 @@ class MixVisionTransformer(BaseModule):
         else:
             super(MixVisionTransformer, self).init_weights()
 
-    def forward(self, x):
+    def forward(self, x, extract_layer_ids=[]):
         outs = []
+        feats = []
 
         for i, layer in enumerate(self.layers):
             x, hw_shape = layer[0](x)
@@ -427,5 +428,10 @@ class MixVisionTransformer(BaseModule):
             x = nlc_to_nchw(x, hw_shape)
             if i in self.out_indices:
                 outs.append(x)
+            if i in extract_layer_ids:
+                feats.append(x)
 
-        return outs
+        if len(feats)>0:
+            return outs,feats
+        else:
+            return outs

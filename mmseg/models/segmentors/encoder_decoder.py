@@ -60,24 +60,45 @@ class EncoderDecoder(BaseSegmentor):
             else:
                 self.auxiliary_head = builder.build_head(auxiliary_head)
 
-    def extract_feat(self, img):
+    def extract_feat(self, img,extract_layer_ids=[]):
         """Extract features from images."""
-        x = self.backbone(img)
+        x = self.backbone(img,extract_layer_ids)
+        if len(extract_layer_ids)>0:
+            x,feats = x
+            return x,feats
         if self.with_neck:
             x = self.neck(x)
         return x
 
-    def encode_decode(self, img, img_metas):
+    def encode_decode(self, img, img_metas,extract_layer_ids=[]):
         """Encode images with backbone and decode into a semantic segmentation
         map of the same size as input."""
-        x = self.extract_feat(img)
+        x = self.extract_feat(img,extract_layer_ids=extract_layer_ids)
+        if len(extract_layer_ids)>0:
+            x,feats = x
         out = self._decode_head_forward_test(x, img_metas)
         out = resize(
             input=out,
             size=img.shape[2:],
             mode='bilinear',
             align_corners=self.align_corners)
-        return out
+
+        if hasattr(self,'auxiliary_head'):
+            out2 = self._auxiliary_head_forward_test(x, img_metas)
+            out2 = resize(
+            input=out2,
+            size=img.shape[2:],
+            mode='bilinear',
+            align_corners=self.align_corners)
+            if len(extract_layer_ids)>0:
+                return out, out2,feats
+            else:
+                return out, out2, None
+
+        if len(extract_layer_ids)>0:
+            return out,feats
+        else:
+            return out, None
 
     def _decode_head_forward_train(self, x, img_metas, gt_semantic_seg):
         """Run forward function and calculate loss for decode head in
@@ -112,6 +133,13 @@ class EncoderDecoder(BaseSegmentor):
             losses.update(add_prefix(loss_aux, 'aux'))
 
         return losses
+
+    def _auxiliary_head_forward_test(self, x, img_metas):
+        """Run forward function and calculate loss for auxiliary head in
+        training."""
+        seg_logits = self.auxiliary_head.forward_test(x, img_metas, self.test_cfg)
+        return seg_logits
+
 
     def forward_dummy(self, img):
         """Dummy forward function."""
